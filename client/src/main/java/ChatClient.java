@@ -3,37 +3,40 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class ChatClient {
-    public static void main(String[] args) {
+    private Scanner scanner;
+    private MessageSender messageSender;
+    private MessageHandler messageHandler;
+
+    public ChatClient() {
+        this.scanner = new Scanner(System.in);
+    }
+
+    public void run() {
         try {
             Socket socket = new Socket("localhost", 8080);
+            messageSender = new MessageSender(socket.getOutputStream());
+            messageHandler = new MessageHandler(socket.getInputStream());
+
+            System.out.println("Введите Ваш ник:\n");
+            String username = scanner.next();
+            messageSender.send(username);
 
             new Thread(() -> {
 
-               while (true){
-                   Scanner scanner = new Scanner(System.in);
-                   String message = scanner.next();
-                   try {
-                       MessageSender sender  = new MessageSender(socket.getOutputStream());
-                       sender.send(message);
-                       System.out.println("Клиент отправил сообщение: " + message);
-                   } catch (IOException e) {
-                       throw new RuntimeException(e);
-                   }
-               }
+                while (true) {
+                    scanner = new Scanner(System.in);
+                    String message = scanner.next();
+                    messageSender.send(message);
+                    System.out.println(message);
+                }
 
             }).start();
 
             new Thread(() -> {
 
-                while (true){
-                    try {
-                        MessageHandler  handler = new MessageHandler(socket.getInputStream());
-                        String message = handler.handle();
-                        System.out.println("Клиент получил сообщение: " + message);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
+                while (true) {
+                    String message = messageHandler.handle();
+                    System.out.println(message);
                 }
 
             }).start();
@@ -41,5 +44,9 @@ public class ChatClient {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void main(String[] args) {
+        new ChatClient().run();
     }
 }

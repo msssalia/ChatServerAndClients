@@ -1,31 +1,58 @@
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Vector;
 
-public class ClientHandler implements Runnable{
-
+public class ClientHandler implements Runnable {
     private final Socket socket;
+    private final Vector<ClientHandler> clientHandlers;
+    private final MessageHandler messageHandler;
+    private final MessageSender messageSender;
+    private String username;
 
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, Vector<ClientHandler> clientHandlers) throws IOException {
         this.socket = socket;
+        this.clientHandlers = clientHandlers;
+        this.messageHandler = new MessageHandler(socket.getInputStream());
+        this.messageSender = new MessageSender(socket.getOutputStream());
     }
 
     @Override
     public void run() {
-        try {
-            while (true){
-                MessageHandler handler = new MessageHandler(socket.getInputStream());
+        username = messageHandler.handle();
 
-                String message = handler.handle();
-                System.out.println("Сервер получил сообщение: " + message);
+        while (true) {
+            String message = messageHandler.handle();
+            System.out.println("Сервер получил сообщение: " + message);
 
-                MessageSender sender = new MessageSender(socket.getOutputStream());
-                String newMessage = "OK" + message;
-                sender.send(newMessage);
-                System.out.println("Сервер отправил сообщение: " + newMessage);
+            String[] args = message.split("\\$");
+            String username = args[0];
+            String text = args[1];
+
+            boolean isSend = false;
+
+            for (ClientHandler client : clientHandlers) {
+                if (client.getUsername() != null && client.getUsername().equals(username)) {
+                    client.sendMessage(getUsername(), text);
+                    isSend = true;
+                }
             }
 
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            if (!isSend){
+                sendMessage(username, "Not found!");
+            }
         }
+    }
+
+    public String getUsername() {
+        return this.username;
+    }
+
+    public void sendMessage(String username, String text) {
+        sendMessage("  [" + username + "] " + text);
+    }
+
+    public void sendMessage(String message) {
+        messageSender.send(message);
+        System.out.println("Сервер отправил сообщение: " + message + " | Username: " + this.username);
     }
 }
